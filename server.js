@@ -6,13 +6,13 @@ const http=require('http');
 const url=require('url')
 const svg2img=require('svg2img');
 
-//copy from hzpx-engine/index.cjs to hzpx-engine.cjs
+//copy from hzpx-engine/hzpxnode.cjs to here
 
-const  Hzpx=require( './hzpx-engine.cjs');
+const  Hzpx=require( './hzpxnode.cjs');
 //deply to https://nissaya.cn/hzpx/?g=初衤礻   
 //  /home/lighthouse/hzpxserver
 // apache port forwarding
-//
+// sudo systemctl restart hzpx
 const fs=require('fs');
 
 const raw=fs.readFileSync(__dirname+'/glyphwiki-dump.txt');
