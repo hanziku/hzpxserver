@@ -57,7 +57,7 @@ WantedBy=multi-user.target
 	ProxyPassReverse /hzpx https://localhost:5080/
     Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
     Header always set X-Content-Type-Options "nosniff"
-    Header always set Content-Security-Policy "default-src 'self';"
+#    Header always set Content-Security-Policy "default-src 'self';"   # this will cause ylz unable to run
     Header always set X-Frame-Options "SAMEORIGIN"
     Header always set Referrer-Policy "strict-origin"
     Header always set Permissions-Policy "geolocation=(),midi=(),sync-xhr=(),microphone=(),camera=(),magnetometer=(),gyroscope=(),fullscreen=(self),payment=()"
