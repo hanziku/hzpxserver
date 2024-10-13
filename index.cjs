@@ -108,6 +108,19 @@ const bsearch = (arr, obj) =>{
 	}
 	return low;
 };
+
+const bsearchNumber = (arr, obj) =>{
+	let low = 0, high = arr.length-1, mid;
+	while (low < high) {
+		mid = (low + high) >> 1;
+		if (arr[mid] === obj)  {
+			while (mid>-1 &&arr[mid-1]===obj ) mid--; //值重覆的元素，回逆到第一個
+			return mid;
+		}
+		(arr[mid] < obj) ? low = mid + 1 : high = mid;
+	}
+	return low;
+};
   
 const alphabetically0 = (a, b) => a[0] > b[0] ? 1 : a[0] < b[0] ? -1 : 0;  
 
@@ -127,7 +140,6 @@ const loadRawText=(raw)=>{
 };
 
 /* compression of glyphwiki format */
-
 
 //stroke
 // const gd2='2:7:8:86:92:100:97:110:111$1:0:0:17:115:185:115$2:32:7:100:115:71:140:12:163$1:32:0:58:144:58:180$2:0:7:53:184:75:174:107:159$2:0:7:165:127:148:138:114:156$2:7:0:129:148:154:172:179:180'
@@ -184,36 +196,15 @@ const unpackGID=(gid)=>{
 };
 
 let ptk ;
-let gidarr=[]; // bsearchable gid off components, all parts including bmp,ext
+let gidarr; // bsearchable gid off components
 let bmp_starts,ext_starts,gwcomp_starts,ebag_starts;
 let ptkfont=false;
 let cjkbmp,cjkext;
 
-let gwgid=[]; // 從 gwcomp 拆出的 gid , 不含bmp,ext
-let gwbody=[];  //  組字指令，可能全部(從glyphwiki-dump.txt 載入時)，或不含bmp/ext (從browser 載入時)
+let gwunicode=[], gwbody=[];  //部件 內碼及本體，排序過
 let rawlines;
 
-const addFontData=(name,data)=>{ //call by pure js data cjkbmp.js 
-	if (name=='cjkbmp') cjkbmp=data.split(/\r?\n/);
-	else if (name=='cjkext') cjkext=data.split(/\r?\n/);
-	else if (name=='gwcomp') {
-		const comps=[];
-		const lines=data.split(/\r?\n/);
-		for (let i=0;i<lines.length;i++) {
-			const line=lines[i];
-			const at=line.indexOf(',');
-			comps.push([line.slice(0,at),line.slice(at+1)]);
-		}
-		comps.sort(alphabetically0);
-		for (let i=0;i<comps.length;i++) {
-			gwgid.push(comps[i][0]);
-			gwbody.push(comps[i][1]);
-		}
-	}
-};
-
-const setFontPtk=(_ptk,g,gw,b,e,ebag)=>{
-	ptk=_ptk;
+const setFontPtk=(g,gw,b,e,ebag)=>{
 	gidarr=g;
 	bmp_starts=b;
 	ext_starts=e;
@@ -233,7 +224,7 @@ const setFontTSV=(raw)=>{
 	}
 	comps.sort(alphabetically0);
 	for (let i=0;i<comps.length;i++) {
-		gidarr.push(comps[i][0]);
+		gwunicode.push(comps[i][0]);
 		gwbody.push(comps[i][1]);
 	}
 
@@ -251,7 +242,7 @@ const setFontJs=(gw,bmp,ext)=>{
 	}
 	comps.sort(alphabetically0);
 	for (let i=0;i<comps.length;i++) {
-		gwgid.push(comps[i][0]);
+		gwunicode.push(comps[i][0]);
 		gwbody.push(comps[i][1]);
 	}
 };
@@ -296,17 +287,14 @@ const getGlyphPtk=(s)=>{
 	if (typeof lbaseline=='undefined') return;
 
 	//assuming all read are loaded, recursive await is very slow
-	if (!ptk) return '';
-	const gd=ptk.getLine(lbaseline);
-	
-	return unpackGD(gd);
+	return '';
 };
 const getGlyph=s=>{
 	let data='';
 	const gid=getGID(s);
 	if (rawlines) {
-		const at= bsearch(gidarr,gid);
-		if (at>0 && gidarr[at].startsWith(gid)) { //make sure same base codepoint otherwise cannot match u21a67-03
+		const at= bsearch(gwunicode,gid);
+		if (at>0 && gwunicode[at].startsWith(gid)) { //make sure same base codepoint otherwise cannot match u21a67-03
 			data=gwbody[at];
 		}
 		return data;
@@ -322,13 +310,12 @@ const getGlyph=s=>{
             data=cjkbmp[cp-0x3400];
         }
     } else {
-		const at= bsearch(gwgid,gid);
-		if (~at && gid.startsWith(gwgid[at])) {
+		const at= bsearchNumber(gwunicode,gid);
+		if (~at) {
 			data=gwbody[at];
 		}
     }
-	const r=unpackGD(data);
-	return r
+	return unpackGD(data)
 };
 
 
@@ -342,12 +329,10 @@ const loadComponents=(data,compObj,countrefer=false)=>{ //enumcomponents recursi
 		return;
 	}
 	for (let i=0;i<entries.length;i++) {
-		const units=entries[i].split(':');
-		if (units[0]=='99') {
-			let gid=units[7];
-			if (gid=='undefined') {
-				console.log('wrong gid');
-				break;
+		if (entries[i].slice(0,3)=='99:') {
+			let gid=entries[i].slice(entries[i].lastIndexOf(':')+1);
+			if (parseInt(gid).toString()==gid) { //部件碼後面帶數字
+				gid=(entries[i].split(':')[7]);//.replace(/@\d+$/,'');
 			}
 			const d=getGlyph(gid);
 			if (!d) {
@@ -423,92 +408,6 @@ const getLastComps=(value)=>{
 	return componentsOf(chars[chars.length-1]);
 };
 const isFontReady=()=>!!ptk;
-const isDataReady=()=>{
-	const ready= cjkbmp && cjkbmp.length && cjkext && cjkext.length && gwbody && gwbody.length;
-	console.log('ready',ready);
-	return ready;
-};
-
-
-const eachGlyph=(cb)=>{
-    
-	if (gidarr.length) {
-		for (let i=0;i<gidarr.length;i++) {
-			cb( gidarr[i], gwbody[i].split('$'));
-		}	
-	} else {
-		for (let i=0;i<cjkbmp.length;i++) {
-			cb( 'u'+(0x3400+i).toString(16), unpackGD(cjkbmp[i]).split('$'));
-		}
-		for (let i=0;i<cjkext.length;i++) {
-			cb( 'u'+(0x20000+i).toString(16), unpackGD(cjkext[i]).split('$'));
-		}
-		for (let i=0;i<gwgid.length;i++) {
-			cb( gwgid[i], gwbody[i].split('$'));
-		}
-	}
-};
-let deriveready=false;
-const inverted={};
-const buildDerivedIndex=()=>{
-	//console.time('derivedindex')
-	eachGlyph((gid,data)=>{
-		const mm=gid.match(/u([\da-f]{4,5})/);
-		if (!mm) return;
-		const word=String.fromCodePoint( parseInt(mm[1],16));
-		for (let i=0;i<data.length;i++) {
-			if (!data[i].startsWith('99')) continue;
-			const items=data[i].split(':');
-			const part=items[7];
-            if (!part) {
-                console.log(data[i])
-                continue;
-            }
-			const m=part.match(/u([\da-f]{4,5})/);
-			if (m) {
-				const ch=String.fromCodePoint( parseInt(m[1],16));
-				if (ch==word) continue;
-				if (! inverted[ch] ) inverted[ch]=[];
-				if (!~inverted[ch].indexOf(word)) inverted[ch].push(word);
-			}
-		}
-	});
-	//console.timeEnd('derivedindex')
-	//console.log(inverted)
-	deriveready=true;
-};
-const derivedOf=(ch)=>{
-	if (!deriveready) buildDerivedIndex();
-	return inverted[ch];
-};
-
-//import {FontFace,FontFaceMap } from './interfaces.ts';
-
-
-const fontfacedef={};
-
-const addFontFace=(name,settings)=>{
-	fontfacedef[name]=settings;
-};
-
-const getFontFace=(name)=>{
-	return fontfacedef[name];
-};
-const enumFontFace=()=>{
-	return Object.keys(fontfacedef);
-};
-
-addFontFace('宋体', { kMinWidthY:2, kMinWidthU:2, kMinWidthT:4.5, kWidth:5});
-addFontFace('细宋体',{ kMinWidthY:2, kMinWidthU:1, kMinWidthT:3, kWidth:5});
-addFontFace('中宋体',{ kMinWidthY:2, kMinWidthU:2, kMinWidthT:6, kWidth:5 });
-addFontFace('粗宋体',{ kMinWidthY:2.5, kMinWidthU:2, kMinWidthT:7, kWidth:5 });
-addFontFace('特宋体',{ kMinWidthY:3, kMinWidthU:2, kMinWidthT:8, kWidth:5});
-
-addFontFace('黑体',{  hei:true, kWidth:2 });
-addFontFace('细黑体',{ hei:true, kWidth:1 });
-addFontFace('中黑体',{ hei:true, kWidth:3  });
-addFontFace('粗黑体',{ hei:true, kWidth:5});
-addFontFace('特黑体',{ hei:true, kWidth:7});
 
 const autoPinx=(ch,base)=>{
 	if (ch==base || !base) return ''
@@ -558,6 +457,31 @@ const splitPinx=(str, tryAutoIRE=false)=>{
 	return out;
 };
 const validIRE=(ire)=>codePointLength(ire)>1 && (splitPinx(ire)).length==1;
+
+//import {FontFace,FontFaceMap } from './interfaces.ts';
+
+
+const fontfacedef={};
+
+const addFontFace=(name,settings)=>{
+	fontfacedef[name]=settings;
+};
+
+const getFontFace=(name)=>{
+	return fontfacedef[name];
+};
+
+addFontFace('宋体', { kMinWidthY:2, kMinWidthU:2, kMinWidthT:4.5, kWidth:5});
+addFontFace('细宋体',{ kMinWidthY:2, kMinWidthU:1, kMinWidthT:3, kWidth:5});
+addFontFace('中宋体',{ kMinWidthY:2, kMinWidthU:2, kMinWidthT:6, kWidth:5 });
+addFontFace('粗宋体',{ kMinWidthY:2.5, kMinWidthU:2, kMinWidthT:7, kWidth:5 });
+addFontFace('特宋体',{ kMinWidthY:3, kMinWidthU:2, kMinWidthT:8, kWidth:5});
+
+addFontFace('黑体',{  hei:true, kWidth:2 });
+addFontFace('细黑体',{ hei:true, kWidth:1 });
+addFontFace('中黑体',{ hei:true, kWidth:3  });
+addFontFace('粗黑体',{ hei:true, kWidth:5});
+addFontFace('特黑体',{ hei:true, kWidth:7});
 
 /*! kage.js v0.4.0
  *  Licensed under GPL-3.0
@@ -3413,7 +3337,7 @@ const drawGlyph=(unicode , opts={})=>{
 const drawPinxChar=(ire,opts={})=>{
 	const chars=splitUTF32(ire);
 
-	if (!(validIRE(ire))) return drawGlyph(ire);
+	if (!(validIRE(ire))) return drawGlyphs(ire);
 	let i=0,polygons = new Kage.Polygons();
 	const size=opts.size||128;
 	let appends=[];
@@ -3474,27 +3398,20 @@ const drawPinx=(str,opts={})=>{
 	return out;
 };
 
-exports.addFontData = addFontData;
-exports.addFontFace = addFontFace;
 exports.autoPinx = autoPinx;
 exports.ch2gid = ch2gid;
 exports.componentsOf = componentsOf;
 exports.componentsOfGD = componentsOfGD;
-exports.derivedOf = derivedOf;
 exports.deserializeGlyphUnit = deserializeGlyphUnit;
 exports.drawGlyph = drawGlyph;
 exports.drawPinx = drawPinx;
 exports.drawPinxChar = drawPinxChar;
-exports.eachGlyph = eachGlyph;
-exports.enumFontFace = enumFontFace;
 exports.factorsOfGD = factorsOfGD;
 exports.frameOf = frameOf;
-exports.getFontFace = getFontFace;
 exports.getGID = getGID;
 exports.getGlyph = getGlyph;
 exports.getLastComps = getLastComps;
 exports.gid2ch = gid2ch;
-exports.isDataReady = isDataReady;
 exports.isFontReady = isFontReady;
 exports.loadComponents = loadComponents;
 exports.serializeGlyphUnit = serializeGlyphUnit;

@@ -1,3 +1,14 @@
+## hzpx server
+	?g=形&svg=1&size=24&color=black
+
+	size,color, svg are option,
+	return png if svg=1 is missing
+
+    ?component=如
+    return 女口
+
+    ?part=果
+	return 𠒪𠜴𠪧𠵩𡅁𡱼𡸖𢃦𢑥𢒙𢻔...
 
 accelon/hzpx
     node dump-glyphwiki.js
@@ -36,9 +47,15 @@ Restart=on-failure
 [Install]
 WantedBy=multi-user.target
 ```
+	sudo a2enmod ssl
+	sudo a2enmod proxy
+	sudo a2enmod proxy_balancer
+	sudo a2enmod proxy_http
 
     sudo systemctl start hzpx
     sudo vi /etc/apache2/sites-enable/000-default
+
+
 
 ```
 <VirtualHost *:443>

@@ -9,6 +9,7 @@ const svg2img=require('svg2img');
 //copy from hzpx-engine/hzpxnode.cjs to here
 
 const  Hzpx=require( './hzpxnode.cjs');
+
 //deply to https://nissaya.cn/hzpx/?g=初衤礻   
 //  /home/lighthouse/hzpxserver
 // apache port forwarding
@@ -24,7 +25,19 @@ console.log('server started')
 //create a server object:
 http.createServer(function (req, res) {
   const query=url.parse(req.url,true).query;
-  if (query.g) {
+  if (query.derive) {
+    const out=(Hzpx.derivedOf(query.derive)||[]).join('');
+    res.writeHead(200, {"Content-Type": "text/plain","Access-Control-Allow-Origin":"*"});
+    res.write(out);
+    res.end();
+  }
+  else if (query.component) {
+    const out=Hzpx.componentsOf(query.component).join('');
+    res.writeHead(200, {"Content-Type": "text/plain","Access-Control-Allow-Origin":"*"});
+    res.write(out);
+    res.end();
+  }
+  else if (query.g) {
     let svg=Hzpx.drawPinx(query.g)[0];
     //5. Convert to jpeg file
     if (query.size) svg=resizeSVG( svg,parseInt(query.size)||24);
